@@ -1,0 +1,28 @@
+{
+  "name": "zoom-meeting-agent",
+  "version": "1.0.0",
+  "description": "AI agent using Mastra AI that interfaces with Telegram to manage Zoom meetings",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "mastra dev",
+    "build": "mastra build",
+    "start": "mastra start"
+  },
+  "dependencies": {
+    "@mastra/core": "^1.22.0",
+    "@mastra/memory": "^1.0.0",
+    "@mastra/libsql": "^1.0.0",
+    "@libsql/client": "^0.14.0",
+    "node-telegram-bot-api": "^0.66.0",
+    "assemblyai": "^4.8.0",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/node-telegram-bot-api": "^0.64.0",
+    "typescript": "^5.6.0"
+  }
+}
