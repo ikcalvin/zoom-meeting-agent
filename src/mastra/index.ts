@@ -14,6 +14,7 @@ import { TelegramBotService } from "../lib/telegram-bot.js";
 export const mastra = new Mastra({
   agents: { zoomAgent },
   storage: new LibSQLStore({
+    id: "mastra-memory",
     url: process.env.TURSO_DATABASE_URL || "file:./mastra.db",
     authToken: process.env.TURSO_AUTH_TOKEN || undefined,
   }),

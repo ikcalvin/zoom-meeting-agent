@@ -27,7 +27,7 @@ export const listMeetingsTool = createTool({
   }),
   execute: async () => {
     try {
-      const response = await zoomFetch("/users/me/meetings?type=upcoming&page_size=50");
+      const response = await zoomFetch("/users/me/meetings?type=upcoming_meetings&page_size=50");
 
       if (!response.ok) {
         const errorBody = await response.text();
@@ -52,9 +52,9 @@ export const listMeetingsTool = createTool({
         total_records: number;
       };
 
-      // Filter to only scheduled meetings (type 2) and sort by start time
+      // Filter to only scheduled meetings (type 2) and recurring meetings (type 8) and sort by start time
       const upcoming = data.meetings
-        .filter((m) => m.type === 2)
+        .filter((m) => m.type === 2 || m.type === 8)
         .sort(
           (a, b) =>
             new Date(a.start_time).getTime() -
