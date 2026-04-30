@@ -27,6 +27,9 @@ export function getDb(): Client {
 /**
  * Initialize the database schema.
  * Creates the zoom_tokens table if it doesn't exist.
+ *
+ * For Server-to-Server OAuth there is no refresh token —
+ * we only store the access token and its expiry.
  */
 export async function initDbSchema(): Promise<void> {
   const db = getDb();
@@ -34,24 +37,21 @@ export async function initDbSchema(): Promise<void> {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS zoom_tokens (
       id INTEGER PRIMARY KEY DEFAULT 1,
-      access_token TEXT NOT NULL,
-      refresh_token TEXT NOT NULL,
-      expires_at INTEGER NOT NULL,
+      access_token TEXT NOT NULL DEFAULT '',
+      expires_at INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       CHECK (id = 1)
     )
   `);
 
-  // Seed with the initial refresh token from env if table is empty
+  // Seed an empty row so getValidZoomToken() can always read from the table
   const result = await db.execute("SELECT COUNT(*) as count FROM zoom_tokens");
   const count = Number(result.rows[0]?.count ?? 0);
 
-  if (count === 0 && process.env.ZOOM_REFRESH_TOKEN) {
-    await db.execute({
-      sql: `INSERT INTO zoom_tokens (id, access_token, refresh_token, expires_at)
-            VALUES (1, '', ?, 0)`,
-      args: [process.env.ZOOM_REFRESH_TOKEN],
-    });
-    console.log("[db] Seeded zoom_tokens with initial refresh token from env");
+  if (count === 0) {
+    await db.execute(
+      "INSERT INTO zoom_tokens (id, access_token, expires_at) VALUES (1, '', 0)"
+    );
+    console.log("[db] Seeded zoom_tokens with empty row (token will be fetched on first API call)");
   }
 }

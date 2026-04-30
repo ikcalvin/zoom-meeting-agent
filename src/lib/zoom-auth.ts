@@ -5,16 +5,19 @@ const EXPIRY_BUFFER_MS = 5 * 60 * 1000; // 5-minute buffer before actual expiry
 
 interface ZoomTokenRow {
   access_token: string;
-  refresh_token: string;
   expires_at: number; // Unix timestamp in milliseconds
 }
 
 /**
- * Get a valid Zoom access token.
+ * Get a valid Zoom access token (Server-to-Server OAuth).
  *
- * 1. Reads current token + expiry from Turso
- * 2. If token is still valid (with 5-min buffer), returns it
- * 3. If expired/expiring, refreshes via Zoom OAuth and persists the new token
+ * Zoom S2S tokens expire after 1 hour. There is no refresh token —
+ * when a token expires, we simply request a new one using account_credentials.
+ *
+ * Flow:
+ * 1. Read current token + expiry from Turso
+ * 2. If token is still valid (with 5-min buffer), return it
+ * 3. If expired/expiring, request a new token and persist it
  *
  * ⚠️ Call this before EVERY Zoom API request — never cache the token yourself.
  */
@@ -22,13 +25,12 @@ export async function getValidZoomToken(): Promise<string> {
   const db = getDb();
 
   const result = await db.execute(
-    "SELECT access_token, refresh_token, expires_at FROM zoom_tokens WHERE id = 1"
+    "SELECT access_token, expires_at FROM zoom_tokens WHERE id = 1"
   );
 
+  // If no row exists yet, or token is expired/expiring — get a new one
   if (result.rows.length === 0) {
-    throw new Error(
-      "No Zoom tokens found in database. Run initDbSchema() first and ensure ZOOM_REFRESH_TOKEN is set."
-    );
+    return requestNewZoomToken();
   }
 
   const row = result.rows[0] as unknown as ZoomTokenRow;
@@ -39,21 +41,25 @@ export async function getValidZoomToken(): Promise<string> {
     return row.access_token;
   }
 
-  // Token expired or expiring — refresh it
-  console.log("[zoom-auth] Access token expired or expiring, refreshing...");
-  return refreshZoomToken(row.refresh_token);
+  // Token expired or expiring — request a new one
+  console.log("[zoom-auth] Access token expired or expiring, requesting new token...");
+  return requestNewZoomToken();
 }
 
 /**
- * Refresh the Zoom OAuth access token using the stored refresh token.
+ * Request a new Zoom access token using Server-to-Server OAuth (account_credentials grant).
+ *
+ * Per Zoom docs: S2S apps use account_credentials grant type.
+ * No refresh token is issued — just request a new token when the old one expires.
  */
-async function refreshZoomToken(refreshToken: string): Promise<string> {
+async function requestNewZoomToken(): Promise<string> {
   const clientId = process.env.ZOOM_CLIENT_ID;
   const clientSecret = process.env.ZOOM_CLIENT_SECRET;
+  const accountId = process.env.ZOOM_ACCOUNT_ID;
 
-  if (!clientId || !clientSecret) {
+  if (!clientId || !clientSecret || !accountId) {
     throw new Error(
-      "ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET environment variables are required"
+      "ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, and ZOOM_ACCOUNT_ID environment variables are required"
     );
   }
 
@@ -68,39 +74,42 @@ async function refreshZoomToken(refreshToken: string): Promise<string> {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
+      grant_type: "account_credentials",
+      account_id: accountId,
     }),
   });
 
   if (!response.ok) {
     const errorBody = await response.text();
     console.error(
-      `[zoom-auth] Token refresh failed: ${response.status} — ${errorBody}`
+      `[zoom-auth] Token request failed: ${response.status} — ${errorBody}`
     );
-    throw new Error(`Zoom token refresh failed: ${response.status}`);
+    throw new Error(`Zoom token request failed: ${response.status}`);
   }
 
   const data = (await response.json()) as {
     access_token: string;
-    refresh_token: string;
-    expires_in: number; // seconds
+    expires_in: number; // seconds (typically 3600)
     token_type: string;
+    scope: string;
   };
 
   const expiresAt = Date.now() + data.expires_in * 1000;
 
-  // Persist new tokens to Turso
+  // Persist token to Turso (upsert — insert or replace)
   const db = getDb();
   await db.execute({
-    sql: `UPDATE zoom_tokens
-          SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = datetime('now')
-          WHERE id = 1`,
-    args: [data.access_token, data.refresh_token, expiresAt],
+    sql: `INSERT INTO zoom_tokens (id, access_token, expires_at, updated_at)
+          VALUES (1, ?, ?, datetime('now'))
+          ON CONFLICT(id) DO UPDATE SET
+            access_token = excluded.access_token,
+            expires_at = excluded.expires_at,
+            updated_at = datetime('now')`,
+    args: [data.access_token, expiresAt],
   });
 
   console.log(
-    `[zoom-auth] Token refreshed, expires at ${new Date(expiresAt).toISOString()}`
+    `[zoom-auth] New token obtained, expires at ${new Date(expiresAt).toISOString()}`
   );
   return data.access_token;
 }
@@ -126,12 +135,12 @@ export async function zoomFetch(
     },
   });
 
-  // Retry once on 401 (token may have been invalidated server-side)
+  // Retry once on 401 (token may have been revoked server-side)
   if (response.status === 401) {
-    console.log("[zoom-auth] Got 401, forcing token refresh and retrying...");
+    console.log("[zoom-auth] Got 401, requesting new token and retrying...");
 
+    // Force expiry so getValidZoomToken() requests a fresh token
     const db = getDb();
-    // Force refresh by setting expires_at to 0
     await db.execute("UPDATE zoom_tokens SET expires_at = 0 WHERE id = 1");
 
     token = await getValidZoomToken();
