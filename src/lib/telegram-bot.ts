@@ -7,8 +7,8 @@ import { transcribeAudio } from "./assemblyai.js";
  *
  * Handles:
  * - /start command (onboarding)
- * - Text messages → agent.generate()
- * - Voice messages → AssemblyAI transcription → agent.generate()
+ * - Text messages -> agent.generate()
+ * - Voice messages -> AssemblyAI transcription -> agent.generate()
  * - Typing indicators while processing
  */
 export class TelegramBotService {
@@ -35,7 +35,7 @@ export class TelegramBotService {
     this.bot.on("message", async (msg) => {
       // Skip if it's a command we already handle, or not text
       if (!msg.text || msg.text.startsWith("/start")) return;
-      // Skip voice messages (handled by the 'voice' event)
+      // Skip voice messages (handled by the "voice" event)
       if (msg.voice) return;
 
       await this.handleText(msg);
@@ -48,7 +48,7 @@ export class TelegramBotService {
   }
 
   /**
-   * Handle /start command — send onboarding message.
+   * Handle /start command and send onboarding message.
    */
   private async handleStart(msg: TelegramBot.Message): Promise<void> {
     const chatId = msg.chat.id;
@@ -68,14 +68,11 @@ export class TelegramBotService {
       });
 
       clearInterval(typingInterval);
-      await this.bot.sendMessage(chatId, result.text);
+      await this.sendMessage(chatId, result.text);
     } catch (error) {
       clearInterval(typingInterval);
       console.error("[telegram] Error processing /start:", error);
-      await this.bot.sendMessage(
-        chatId,
-        "Sorry, something went wrong. Please try again."
-      );
+      await this.sendMessage(chatId, "Sorry, something went wrong. Please try again.");
     }
   }
 
@@ -103,11 +100,11 @@ export class TelegramBotService {
       });
 
       clearInterval(typingInterval);
-      await this.bot.sendMessage(chatId, result.text);
+      await this.sendMessage(chatId, result.text);
     } catch (error) {
       clearInterval(typingInterval);
       console.error("[telegram] Error processing text message:", error);
-      await this.bot.sendMessage(
+      await this.sendMessage(
         chatId,
         "Sorry, something went wrong while processing your message. Please try again."
       );
@@ -152,7 +149,7 @@ export class TelegramBotService {
         clearInterval(typingInterval);
         const message = this.getErrorMessage(transcriptionError);
         console.error("[telegram] Transcription failed:", message, transcriptionError);
-        await this.bot.sendMessage(
+        await this.sendMessage(
           chatId,
           "Sorry, I couldn't process your voice message. Please try again or send a text message instead."
         );
@@ -161,7 +158,7 @@ export class TelegramBotService {
 
       if (!transcribedText || transcribedText.trim().length === 0) {
         clearInterval(typingInterval);
-        await this.bot.sendMessage(
+        await this.sendMessage(
           chatId,
           "Sorry, I couldn't make out what you said. Could you try again or send a text message instead?"
         );
@@ -180,14 +177,14 @@ export class TelegramBotService {
       clearInterval(typingInterval);
 
       // Send a note about what was transcribed, then the response
-      await this.bot.sendMessage(
+      await this.sendMessage(
         chatId,
-        `🎙️ I heard: "${transcribedText}"\n\n${result.text}`
+        `I heard: "${transcribedText}"\n\n${result.text}`
       );
     } catch (error) {
       clearInterval(typingInterval);
       console.error("[telegram] Error processing voice message:", error);
-      await this.bot.sendMessage(
+      await this.sendMessage(
         chatId,
         "Sorry, something went wrong while processing your voice message. Please try again."
       );
@@ -201,13 +198,13 @@ export class TelegramBotService {
     try {
       await this.bot.sendChatAction(chatId, "typing");
     } catch {
-      // Non-critical — don't let typing indicator failures break the flow
+      // Non-critical; do not let typing indicator failures break the flow
     }
   }
 
   /**
    * Start a loop that sends typing indicators every 4 seconds.
-   * Telegram typing indicators auto-expire after ~5 seconds,
+   * Telegram typing indicators auto-expire after about 5 seconds,
    * so we need to refresh them during long operations.
    *
    * Returns the interval ID for cleanup.
@@ -223,6 +220,18 @@ export class TelegramBotService {
    */
   private getUserId(msg: TelegramBot.Message): string {
     return msg.from?.id.toString() ?? `anon-${msg.chat.id}`;
+  }
+
+  /**
+   * Send a Telegram message after removing bold markdown markers that may
+   * appear in model output.
+   */
+  private async sendMessage(chatId: number, text: string): Promise<void> {
+    await this.bot.sendMessage(chatId, this.stripDoubleAsterisks(text));
+  }
+
+  private stripDoubleAsterisks(text: string): string {
+    return text.replace(/\*\*/g, "");
   }
 
   private getErrorMessage(error: unknown): string {
