@@ -1,7 +1,7 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { zoomFetch } from "../../lib/zoom-auth.js";
-import { formatJamaicaTime, JAMAICA_TZ } from "../../lib/time-utils.js";
+import { formatJamaicaTime } from "../../lib/time-utils.js";
 
 export const updateMeetingTool = createTool({
   id: "update-zoom-meeting",
@@ -66,7 +66,8 @@ export const updateMeetingTool = createTool({
       if (topic) body.topic = topic;
       if (start_time) {
         body.start_time = start_time;
-        body.timezone = JAMAICA_TZ;
+        // Note: Don't include timezone when sending UTC ISO strings
+        // The Z suffix indicates UTC, so timezone field would cause a double conversion
       }
       if (duration !== undefined) body.duration = duration;
 

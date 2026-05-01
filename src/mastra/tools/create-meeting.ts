@@ -4,7 +4,6 @@ import { zoomFetch } from "../../lib/zoom-auth.js";
 import {
   formatJamaicaTime,
   toZoomIso,
-  JAMAICA_TZ,
 } from "../../lib/time-utils.js";
 
 export const createMeetingTool = createTool({
@@ -40,7 +39,8 @@ export const createMeetingTool = createTool({
           type: 2, // Scheduled meeting
           start_time: start_time,
           duration: duration || 60,
-          timezone: JAMAICA_TZ,
+          // Note: start_time is already in UTC ISO format (with Z suffix)
+          // so timezone field is not needed and would cause double conversion
           settings: {
             join_before_host: true,
             waiting_room: false,
