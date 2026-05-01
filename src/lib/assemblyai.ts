@@ -1,5 +1,7 @@
 import { AssemblyAI } from "assemblyai";
 
+type AudioInput = string | NodeJS.ReadableStream | Buffer;
+
 let client: AssemblyAI | null = null;
 
 function getClient(): AssemblyAI {
@@ -23,19 +25,50 @@ function getClient(): AssemblyAI {
  *
  * The AssemblyAI SDK handles polling internally via transcripts.transcribe().
  */
-export async function transcribeAudio(audioUrl: string): Promise<string> {
-  const aai = getClient();
+function describeAudioInput(audio: AudioInput): string {
+  if (typeof audio === "string") return audio;
+  if (Buffer.isBuffer(audio)) return "[buffer]";
+  return "[stream]";
+}
 
-  console.log(`[assemblyai] Starting transcription for: ${audioUrl}`);
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
 
   try {
-    const transcript = await aai.transcripts.transcribe({
-      audio_url: audioUrl,
-    });
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown transcription error";
+  }
+}
+
+export async function transcribeAudio(audio: AudioInput): Promise<string> {
+  const aai = getClient();
+
+  console.log(
+    `[assemblyai] Starting transcription for: ${describeAudioInput(audio)}`
+  );
+
+  try {
+
+    const params = {
+      audio: audio,
+      speech_models: ["universal-3-pro", "universal-2"],
+      language_detection: true,
+    };
+    
+    const transcript = await aai.transcripts.transcribe(params);
+
+    console.log(`[assemblyai] Transcript status: ${transcript.status}`);
 
     if (transcript.status === "error") {
       console.error(`[assemblyai] Transcription error: ${transcript.error}`);
       throw new Error(`Transcription failed: ${transcript.error}`);
+    }
+
+    if (transcript.status !== "completed") {
+      console.error(`[assemblyai] Unexpected status: ${transcript.status}`);
+      throw new Error(`Transcription did not complete. Status: ${transcript.status}`);
     }
 
     const text = transcript.text ?? "";
@@ -43,9 +76,14 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
       `[assemblyai] Transcription complete: "${text.substring(0, 100)}..."`
     );
 
+    if (!text || text.trim().length === 0) {
+      throw new Error("Transcription resulted in empty text");
+    }
+
     return text;
   } catch (error) {
-    console.error("[assemblyai] Transcription failed:", error);
-    throw error;
+    const message = getErrorMessage(error);
+    console.error("[assemblyai] Transcription failed:", message, error);
+    throw new Error(message);
   }
 }

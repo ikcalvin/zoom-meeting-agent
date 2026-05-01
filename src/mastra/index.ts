@@ -1,7 +1,30 @@
 import { Mastra } from "@mastra/core";
 import { LibSQLStore } from "@mastra/libsql";
+import { Observability, DefaultExporter, CloudExporter, SensitiveDataFilter } from "@mastra/observability";
 import { zoomAgent } from "./agents/zoom-agent.js";
 import { initDbSchema } from "../lib/db.js";
+
+/**
+ * Configure observability with trace collection and export.
+ * 
+ * - DefaultExporter: Persists traces to the database for local Mastra Studio access
+ * - CloudExporter: Sends traces to Mastra Cloud (requires MASTRA_CLOUD_ACCESS_TOKEN)
+ * - SensitiveDataFilter: Automatically redacts sensitive data like API keys, passwords, tokens
+ */
+const observability = new Observability({
+  configs: {
+    default: {
+      serviceName: "zoom-meeting-agent",
+      exporters: [
+        new DefaultExporter(),
+        new CloudExporter(),
+      ],
+      spanOutputProcessors: [
+        new SensitiveDataFilter(),
+      ],
+    },
+  },
+});
 
 /**
  * Mastra instance — the central hub that registers all agents and storage.
@@ -9,6 +32,9 @@ import { initDbSchema } from "../lib/db.js";
  * Storage: Turso (LibSQL) for conversation memory persistence.
  * The same Turso database is used for both Mastra memory and
  * our custom zoom_tokens table (via direct @libsql/client queries).
+ * 
+ * Observability: Configured to trace all agent operations and tool calls.
+ * Traces can be viewed in Mastra Studio (local or cloud).
  */
 export const mastra = new Mastra({
   agents: { zoomAgent },
@@ -17,6 +43,7 @@ export const mastra = new Mastra({
     url: process.env.TURSO_DATABASE_URL || "file:./mastra.db",
     authToken: process.env.TURSO_AUTH_TOKEN || undefined,
   }),
+  observability,
 });
 
 /**

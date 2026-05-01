@@ -68,7 +68,7 @@ export class TelegramBotService {
       });
 
       clearInterval(typingInterval);
-      await this.bot.sendMessage(chatId, result.text);
+      await this.bot.sendMessage(chatId, result.text, { parse_mode: "HTML" });
     } catch (error) {
       clearInterval(typingInterval);
       console.error("[telegram] Error processing /start:", error);
@@ -103,7 +103,7 @@ export class TelegramBotService {
       });
 
       clearInterval(typingInterval);
-      await this.bot.sendMessage(chatId, result.text);
+      await this.bot.sendMessage(chatId, result.text, { parse_mode: "HTML" });
     } catch (error) {
       clearInterval(typingInterval);
       console.error("[telegram] Error processing text message:", error);
@@ -134,22 +134,27 @@ export class TelegramBotService {
     const typingInterval = this.startTypingLoop(chatId);
 
     try {
-      // Step 1: Get the file URL from Telegram
+      // Step 1: Read the voice file directly from Telegram as a stream.
+      // This avoids handing AssemblyAI a Telegram-scoped URL that it may not
+      // be able to fetch reliably from outside our bot process.
       const fileId = msg.voice.file_id;
-      const fileLink = await this.bot.getFileLink(fileId);
+      const file = await this.bot.getFile(fileId);
+      const filePath = file.file_path ?? "unknown-path";
+      const fileStream = this.bot.getFileStream(fileId);
 
-      console.log(`[telegram] Voice file URL: ${fileLink}`);
+      console.log(`[telegram] Processing voice file: ${filePath}`);
 
       // Step 2: Transcribe with AssemblyAI
       let transcribedText: string;
       try {
-        transcribedText = await transcribeAudio(fileLink);
+        transcribedText = await transcribeAudio(fileStream);
       } catch (transcriptionError) {
         clearInterval(typingInterval);
-        console.error("[telegram] Transcription failed:", transcriptionError);
+        const message = this.getErrorMessage(transcriptionError);
+        console.error("[telegram] Transcription failed:", message, transcriptionError);
         await this.bot.sendMessage(
           chatId,
-          "Sorry, I couldn't process your voice message. Please try again or send a text message instead."
+          `Sorry, I couldn't process your voice message. Please try again or send a text message instead.\n\nReason: ${message}`
         );
         return;
       }
@@ -218,5 +223,16 @@ export class TelegramBotService {
    */
   private getUserId(msg: TelegramBot.Message): string {
     return msg.from?.id.toString() ?? `anon-${msg.chat.id}`;
+  }
+
+  private getErrorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "string") return error;
+
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return "Unknown error";
+    }
   }
 }
