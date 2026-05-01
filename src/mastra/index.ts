@@ -1,6 +1,6 @@
 import { Mastra } from "@mastra/core";
 import { LibSQLStore } from "@mastra/libsql";
-import { Observability, DefaultExporter, CloudExporter, SensitiveDataFilter } from "@mastra/observability";
+import { Observability, DefaultExporter, SensitiveDataFilter } from "@mastra/observability";
 import { zoomAgent } from "./agents/zoom-agent.js";
 import { initDbSchema } from "../lib/db.js";
 
@@ -17,7 +17,6 @@ const observability = new Observability({
       serviceName: "zoom-meeting-agent",
       exporters: [
         new DefaultExporter(),
-        new CloudExporter(),
       ],
       spanOutputProcessors: [
         new SensitiveDataFilter(),

@@ -68,7 +68,7 @@ export class TelegramBotService {
       });
 
       clearInterval(typingInterval);
-      await this.bot.sendMessage(chatId, result.text, { parse_mode: "HTML" });
+      await this.bot.sendMessage(chatId, result.text);
     } catch (error) {
       clearInterval(typingInterval);
       console.error("[telegram] Error processing /start:", error);
@@ -103,7 +103,7 @@ export class TelegramBotService {
       });
 
       clearInterval(typingInterval);
-      await this.bot.sendMessage(chatId, result.text, { parse_mode: "HTML" });
+      await this.bot.sendMessage(chatId, result.text);
     } catch (error) {
       clearInterval(typingInterval);
       console.error("[telegram] Error processing text message:", error);
@@ -154,7 +154,7 @@ export class TelegramBotService {
         console.error("[telegram] Transcription failed:", message, transcriptionError);
         await this.bot.sendMessage(
           chatId,
-          `Sorry, I couldn't process your voice message. Please try again or send a text message instead.\n\nReason: ${message}`
+          "Sorry, I couldn't process your voice message. Please try again or send a text message instead."
         );
         return;
       }

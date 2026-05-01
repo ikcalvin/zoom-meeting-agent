@@ -129,9 +129,9 @@ When a user wants to delete/cancel a meeting:
 - For unrelated messages, respond: "I can only help with Zoom meeting-related tasks such as creating, listing, updating, or deleting meetings."
 
 ## FORMATTING
-- Use Telegram-friendly formatting (no markdown that Telegram doesn't support).
-- Keep responses concise and structured.
+- Use plain text only — no HTML tags, no asterisks, no markdown of any kind.
 - Use emojis for visual structure as shown in the templates above.
+- Keep responses concise and structured.
 
 ## IMPORTANT RULES
 - NEVER create a meeting without explicit user confirmation.
@@ -147,7 +147,7 @@ export const zoomAgent = new Agent({
   id: "zoom-meeting-agent",
   name: "Zoom Meeting Agent",
   instructions: buildSystemInstructions,
-  model: "openai/gpt-4o",
+  model: "openai/gpt-4.1-mini",
   tools: {
     createMeetingTool,
     listMeetingsTool,
