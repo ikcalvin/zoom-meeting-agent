@@ -2,7 +2,6 @@ import { Mastra } from "@mastra/core";
 import { LibSQLStore } from "@mastra/libsql";
 import { zoomAgent } from "./agents/zoom-agent.js";
 import { initDbSchema } from "../lib/db.js";
-import { TelegramBotService } from "../lib/telegram-bot.js";
 
 /**
  * Mastra instance — the central hub that registers all agents and storage.
@@ -24,6 +23,9 @@ export const mastra = new Mastra({
  * Bootstrap side-effects when this module loads (i.e., when `mastra dev` starts).
  * - Initialize the zoom_tokens DB table
  * - Start the Telegram bot (polling)
+ *
+ * Uses dynamic import for TelegramBotService to avoid circular dependency
+ * (telegram-bot.ts needs to import mastra, which is still initializing here).
  */
 (async () => {
   try {
@@ -35,6 +37,8 @@ export const mastra = new Mastra({
 
   if (process.env.TELEGRAM_BOT_TOKEN) {
     try {
+      // Dynamic import to avoid circular dependency
+      const { TelegramBotService } = await import("../lib/telegram-bot.js");
       new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN);
       console.log("[mastra] Telegram bot started");
     } catch (error) {
