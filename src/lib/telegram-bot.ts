@@ -13,11 +13,46 @@ import { transcribeAudio } from "./assemblyai.js";
  */
 export class TelegramBotService {
   private bot: TelegramBot;
+  private readonly token: string;
 
-  constructor(token: string) {
-    this.bot = new TelegramBot(token, { polling: true });
+  constructor(token: string, options?: { mode?: "polling" | "webhook"; port?: number }) {
+    this.token = token;
+    const mode = options?.mode ?? "polling";
+
+    if (mode === "webhook") {
+      const port = options?.port ?? 8080;
+      this.bot = new TelegramBot(token, {
+        webHook: {
+          autoOpen: true,
+          port,
+          host: "0.0.0.0",
+        },
+      });
+    } else {
+      this.bot = new TelegramBot(token, { polling: true });
+    }
+
     this.registerHandlers();
-    console.log("[telegram] Bot started with polling");
+    if (mode === "webhook") {
+      console.log("[telegram] Bot started with webhook listener");
+    } else {
+      console.log("[telegram] Bot started with polling");
+    }
+  }
+
+  async configureWebhook(webhookUrl: string): Promise<void> {
+    const normalized = webhookUrl.replace(/\/+$/, "");
+    const path = `/telegram/webhook/${this.token}`;
+    const fullWebhookUrl = `${normalized}${path}`;
+    const webhookOptions: TelegramBot.SetWebHookOptions & {
+      drop_pending_updates?: boolean;
+    } = {
+      drop_pending_updates: true,
+    };
+
+    await this.bot.setWebHook(fullWebhookUrl, webhookOptions);
+
+    console.log(`[telegram] Webhook configured at ${fullWebhookUrl}`);
   }
 
   private registerHandlers(): void {
@@ -44,6 +79,10 @@ export class TelegramBotService {
     // Handle errors gracefully
     this.bot.on("polling_error", (error) => {
       console.error("[telegram] Polling error:", error.message);
+    });
+
+    this.bot.on("webhook_error", (error) => {
+      console.error("[telegram] Webhook error:", error.message);
     });
   }
 

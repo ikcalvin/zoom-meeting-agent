@@ -1,6 +1,6 @@
 import { Mastra } from "@mastra/core";
 import { LibSQLStore } from "@mastra/libsql";
-import { Observability, DefaultExporter, SensitiveDataFilter } from "@mastra/observability";
+import { Observability, DefaultExporter, SensitiveDataFilter, CloudExporter } from "@mastra/observability";
 import { zoomAgent } from "./agents/zoom-agent.js";
 import { initDbSchema } from "../lib/db.js";
 
@@ -16,7 +16,7 @@ const observability = new Observability({
     default: {
       serviceName: "zoom-meeting-agent",
       exporters: [
-        new DefaultExporter(),
+        new DefaultExporter(), new CloudExporter()
       ],
       spanOutputProcessors: [
         new SensitiveDataFilter(),
@@ -48,7 +48,7 @@ export const mastra = new Mastra({
 /**
  * Bootstrap side-effects when this module loads (i.e., when `mastra dev` starts).
  * - Initialize the zoom_tokens DB table
- * - Start the Telegram bot (polling)
+ * - Start the Telegram bot (polling or webhook)
  *
  * Uses dynamic import for TelegramBotService to avoid circular dependency
  * (telegram-bot.ts needs to import mastra, which is still initializing here).
@@ -65,8 +65,22 @@ export const mastra = new Mastra({
     try {
       // Dynamic import to avoid circular dependency
       const { TelegramBotService } = await import("../lib/telegram-bot.js");
-      new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN);
-      console.log("[mastra] Telegram bot started");
+      const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
+
+      if (webhookUrl) {
+        const port = Number(process.env.TELEGRAM_WEBHOOK_PORT || "8081");
+        const bot = new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN, {
+          mode: "webhook",
+          port,
+        });
+        await bot.configureWebhook(webhookUrl);
+        console.log(`[mastra] Telegram bot started in webhook mode on port ${port}`);
+      } else {
+        new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN, {
+          mode: "polling",
+        });
+        console.log("[mastra] Telegram bot started in polling mode");
+      }
     } catch (error) {
       console.error("[mastra] Failed to start Telegram bot:", error);
     }
