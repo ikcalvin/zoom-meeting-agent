@@ -88,7 +88,6 @@ cp .env.example .env
 # ── Telegram ──
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_WEBHOOK_URL=https://your-cloud-run-url.a.run.app
-TELEGRAM_WEBHOOK_PORT=8081
 
 # ── Zoom Server-to-Server OAuth ──
 ZOOM_CLIENT_ID=your_zoom_client_id
@@ -126,17 +125,16 @@ This starts the Mastra dev server, initializes the database schema, and starts T
 
 ```
 [mastra] Database schema initialized
-[telegram] Bot started with webhook listener
+[telegram] Bot started in webhook mode (Mastra route)
 ```
 
 ### Webhook Testing with ngrok (Local)
 
-Use a separate port for Telegram webhook traffic so it does not conflict with Mastra Studio/API.
+Telegram webhook traffic is handled by the same Mastra server port.
 
 ```bash
 # .env
 PORT=8080
-TELEGRAM_WEBHOOK_PORT=8081
 TELEGRAM_WEBHOOK_URL=https://<your-ngrok-domain>
 ```
 
@@ -144,7 +142,7 @@ Run app and tunnel:
 
 ```bash
 npm run dev
-ngrok http 8081
+ngrok http 8080
 ```
 
 Notes:

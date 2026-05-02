@@ -1,8 +1,12 @@
 import { Mastra } from "@mastra/core";
+import { registerApiRoute } from "@mastra/core/server";
 import { LibSQLStore } from "@mastra/libsql";
 import { Observability, DefaultExporter, SensitiveDataFilter, CloudExporter } from "@mastra/observability";
 import { zoomAgent } from "./agents/zoom-agent.js";
 import { initDbSchema } from "../lib/db.js";
+import type { TelegramBotService } from "../lib/telegram-bot.js";
+
+let telegramBotService: TelegramBotService | null = null;
 
 /**
  * Configure observability with trace collection and export.
@@ -42,6 +46,35 @@ export const mastra = new Mastra({
     url: process.env.TURSO_DATABASE_URL || "file:./mastra.db",
     authToken: process.env.TURSO_AUTH_TOKEN || undefined,
   }),
+  server: {
+    apiRoutes: [
+      registerApiRoute("/telegram/webhook/:token", {
+        method: "POST",
+        requiresAuth: false,
+        handler: async (c) => {
+          const incomingToken = c.req.param("token");
+          const expectedToken = process.env.TELEGRAM_BOT_TOKEN;
+
+          if (!expectedToken || incomingToken !== expectedToken) {
+            return c.text("Unauthorized", 401);
+          }
+
+          if (!telegramBotService || !telegramBotService.isWebhookMode()) {
+            return c.text("Telegram webhook not configured", 503);
+          }
+
+          try {
+            const update = await c.req.json();
+            await telegramBotService.processWebhookUpdate(update);
+            return c.text("OK", 200);
+          } catch (error) {
+            console.error("[telegram] Failed to process webhook update:", error);
+            return c.text("Internal Server Error", 500);
+          }
+        },
+      }),
+    ],
+  },
   observability,
 });
 
@@ -68,15 +101,13 @@ export const mastra = new Mastra({
       const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
 
       if (webhookUrl) {
-        const port = Number(process.env.TELEGRAM_WEBHOOK_PORT || "8081");
-        const bot = new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN, {
+        telegramBotService = new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN, {
           mode: "webhook",
-          port,
         });
-        await bot.configureWebhook(webhookUrl);
-        console.log(`[mastra] Telegram bot started in webhook mode on port ${port}`);
+        await telegramBotService.configureWebhook(webhookUrl);
+        console.log("[mastra] Telegram bot started in webhook mode");
       } else {
-        new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN, {
+        telegramBotService = new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN, {
           mode: "polling",
         });
         console.log("[mastra] Telegram bot started in polling mode");
