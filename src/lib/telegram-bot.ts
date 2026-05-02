@@ -14,27 +14,24 @@ import { transcribeAudio } from "./assemblyai.js";
 export class TelegramBotService {
   private bot: TelegramBot;
   private readonly token: string;
+  private readonly mode: "polling" | "webhook";
 
   constructor(token: string, options?: { mode?: "polling" | "webhook"; port?: number }) {
     this.token = token;
     const mode = options?.mode ?? "polling";
+    this.mode = mode;
 
-    if (mode === "webhook") {
-      const port = options?.port ?? 8080;
-      this.bot = new TelegramBot(token, {
-        webHook: {
-          autoOpen: true,
-          port,
-          host: "0.0.0.0",
-        },
-      });
-    } else {
+    if (mode === "polling") {
       this.bot = new TelegramBot(token, { polling: true });
+    } else {
+      // In webhook mode, updates are received by the Mastra HTTP server route
+      // and forwarded via processUpdate(), so we do not open a second HTTP listener.
+      this.bot = new TelegramBot(token);
     }
 
     this.registerHandlers();
     if (mode === "webhook") {
-      console.log("[telegram] Bot started with webhook listener");
+      console.log("[telegram] Bot started in webhook mode (Mastra route)");
     } else {
       console.log("[telegram] Bot started with polling");
     }
@@ -53,6 +50,14 @@ export class TelegramBotService {
     await this.bot.setWebHook(fullWebhookUrl, webhookOptions);
 
     console.log(`[telegram] Webhook configured at ${fullWebhookUrl}`);
+  }
+
+  isWebhookMode(): boolean {
+    return this.mode === "webhook";
+  }
+
+  async processWebhookUpdate(update: TelegramBot.Update): Promise<void> {
+    await this.bot.processUpdate(update);
   }
 
   private registerHandlers(): void {

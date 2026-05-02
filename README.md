@@ -88,7 +88,6 @@ cp .env.example .env
 # ── Telegram ──
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_WEBHOOK_URL=https://your-cloud-run-url.a.run.app
-TELEGRAM_WEBHOOK_PORT=8081
 
 # ── Zoom Server-to-Server OAuth ──
 ZOOM_CLIENT_ID=your_zoom_client_id
@@ -126,17 +125,16 @@ This starts the Mastra dev server, initializes the database schema, and starts T
 
 ```
 [mastra] Database schema initialized
-[telegram] Bot started with webhook listener
+[telegram] Bot started in webhook mode (Mastra route)
 ```
 
 ### Webhook Testing with ngrok (Local)
 
-Use a separate port for Telegram webhook traffic so it does not conflict with Mastra Studio/API.
+Telegram webhook traffic is handled by the same Mastra server port.
 
 ```bash
 # .env
 PORT=8080
-TELEGRAM_WEBHOOK_PORT=8081
 TELEGRAM_WEBHOOK_URL=https://<your-ngrok-domain>
 ```
 
@@ -144,7 +142,7 @@ Run app and tunnel:
 
 ```bash
 npm run dev
-ngrok http 8081
+ngrok http 8080
 ```
 
 Notes:
@@ -156,6 +154,40 @@ Notes:
 ```bash
 npm run build
 npm start
+```
+
+### Deploy to GCE VM (GitHub Actions)
+
+This repo includes a workflow at `.github/workflows/deploy-gce-vm.yml` that:
+- builds and pushes a Docker image to Artifact Registry
+- SSHes into your VM
+- pulls the new image and runs `docker compose up -d`
+
+VM files expected:
+- `/opt/zoom-meeting-agent/docker-compose.yml`
+- `/opt/zoom-meeting-agent/.env`
+
+Use [deploy/docker-compose.gce.yml](deploy/docker-compose.gce.yml) as the template for `docker-compose.yml`.
+
+Required GitHub Secrets:
+- `GCP_SA_KEY`
+- `GCP_PROJECT_ID`
+- `GCP_REGION`
+- `GCP_ARTIFACT_REPO`
+- `GCE_VM_HOST`
+- `GCE_VM_USER`
+- `GCE_SSH_PRIVATE_KEY`
+
+One-time VM setup example:
+
+```bash
+sudo mkdir -p /opt/zoom-meeting-agent
+sudo chown -R $USER:$USER /opt/zoom-meeting-agent
+cd /opt/zoom-meeting-agent
+
+# copy these from your local machine/repo:
+# - deploy/docker-compose.gce.yml -> docker-compose.yml
+# - production .env
 ```
 
 ## Usage
