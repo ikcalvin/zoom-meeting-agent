@@ -20,7 +20,7 @@ src/
 ├── lib/
 │   ├── assemblyai.ts         # Voice message transcription (AssemblyAI)
 │   ├── db.ts                 # Turso/LibSQL client + schema initialization
-│   ├── telegram-bot.ts       # Telegram bot service (polling, text/voice handlers)
+│   ├── telegram-bot.ts       # Telegram bot service (webhook/polling, text/voice handlers)
 │   ├── time-utils.ts         # Jamaica timezone helpers (date formatting, conflict detection)
 │   └── zoom-auth.ts          # Zoom S2S OAuth token manager + authenticated fetch
 └── mastra/
@@ -37,7 +37,7 @@ src/
 ### How It Works
 
 1. **User sends a message** on Telegram (text or voice)
-2. **Telegram bot** receives it via polling and sends a typing indicator
+2. **Telegram bot** receives it via webhook (or polling fallback) and sends a typing indicator
 3. If it's a **voice message**, it's first transcribed via AssemblyAI
 4. The message is passed to the **Mastra agent** with conversation memory
 5. The agent's **dynamic system prompt** includes the current date/time so it can resolve relative dates
@@ -87,6 +87,7 @@ cp .env.example .env
 ```env
 # ── Telegram ──
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_WEBHOOK_URL=https://your-cloud-run-url.a.run.app
 
 # ── Zoom Server-to-Server OAuth ──
 ZOOM_CLIENT_ID=your_zoom_client_id
@@ -120,11 +121,11 @@ OPENAI_API_KEY=your_openai_api_key
 npm run dev
 ```
 
-This starts the Mastra dev server, initializes the database schema, and begins Telegram bot polling. You should see:
+This starts the Mastra dev server, initializes the database schema, and starts Telegram bot integration. With `TELEGRAM_WEBHOOK_URL` set, webhook mode is used; otherwise polling is used. You should see:
 
 ```
 [mastra] Database schema initialized
-[telegram] Bot started with polling
+[telegram] Bot started with webhook listener
 ```
 
 ### 5. Build and Run for Production
