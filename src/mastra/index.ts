@@ -1,6 +1,6 @@
 import { Mastra } from "@mastra/core";
 import { LibSQLStore } from "@mastra/libsql";
-import { Observability, DefaultExporter, SensitiveDataFilter } from "@mastra/observability";
+import { Observability, DefaultExporter, SensitiveDataFilter, CloudExporter } from "@mastra/observability";
 import { zoomAgent } from "./agents/zoom-agent.js";
 import { initDbSchema } from "../lib/db.js";
 
@@ -16,7 +16,7 @@ const observability = new Observability({
     default: {
       serviceName: "zoom-meeting-agent",
       exporters: [
-        new DefaultExporter(),
+        new DefaultExporter(), new CloudExporter()
       ],
       spanOutputProcessors: [
         new SensitiveDataFilter(),
@@ -68,13 +68,13 @@ export const mastra = new Mastra({
       const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
 
       if (webhookUrl) {
-        const port = Number(process.env.PORT || "8080");
+        const port = Number(process.env.TELEGRAM_WEBHOOK_PORT || "8081");
         const bot = new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN, {
           mode: "webhook",
           port,
         });
         await bot.configureWebhook(webhookUrl);
-        console.log("[mastra] Telegram bot started in webhook mode");
+        console.log(`[mastra] Telegram bot started in webhook mode on port ${port}`);
       } else {
         new TelegramBotService(process.env.TELEGRAM_BOT_TOKEN, {
           mode: "polling",
