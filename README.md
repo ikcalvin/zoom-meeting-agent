@@ -156,6 +156,40 @@ npm run build
 npm start
 ```
 
+### Deploy to GCE VM (GitHub Actions)
+
+This repo includes a workflow at `.github/workflows/deploy-gce-vm.yml` that:
+- builds and pushes a Docker image to Artifact Registry
+- SSHes into your VM
+- pulls the new image and runs `docker compose up -d`
+
+VM files expected:
+- `/opt/zoom-meeting-agent/docker-compose.yml`
+- `/opt/zoom-meeting-agent/.env`
+
+Use [deploy/docker-compose.gce.yml](deploy/docker-compose.gce.yml) as the template for `docker-compose.yml`.
+
+Required GitHub Secrets:
+- `GCP_SA_KEY`
+- `GCP_PROJECT_ID`
+- `GCP_REGION`
+- `GCP_ARTIFACT_REPO`
+- `GCE_VM_HOST`
+- `GCE_VM_USER`
+- `GCE_SSH_PRIVATE_KEY`
+
+One-time VM setup example:
+
+```bash
+sudo mkdir -p /opt/zoom-meeting-agent
+sudo chown -R $USER:$USER /opt/zoom-meeting-agent
+cd /opt/zoom-meeting-agent
+
+# copy these from your local machine/repo:
+# - deploy/docker-compose.gce.yml -> docker-compose.yml
+# - production .env
+```
+
 ## Usage
 
 Open your Telegram bot and start chatting:
